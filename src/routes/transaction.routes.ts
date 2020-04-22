@@ -1,40 +1,18 @@
 import { Router } from 'express';
-import { uuid } from 'uuidv4';
 
-// import TransactionsRepository from '../repositories/TransactionsRepository';
-// import CreateTransactionService from '../services/CreateTransactionService';
+import TransactionsRepository from '../repositories/TransactionsRepository';
+import CreateTransactionService from '../services/CreateTransactionService';
 
 const transactionRouter = Router();
 
-// const transactionsRepository = new TransactionsRepository();
-
-interface Transaction {
-  id: string;
-  title: string;
-  value: number;
-  type: string;
-}
-
-const transactions: Transaction[] = [];
+const transactionsRepository = new TransactionsRepository();
 
 transactionRouter.get('/', (request, response) => {
   try {
-    const income = transactions
-      .filter(transaction => transaction.type === 'income')
-      .reduce((inc, transaction) => inc + transaction.value, 0);
+    const transactions = transactionsRepository.all();
+    const balance = transactionsRepository.getBalance();
 
-    const outcome = transactions
-      .filter(transaction => transaction.type === 'outcome')
-      .reduce((out, transaction) => out + transaction.value, 0);
-
-    return response.json({
-      transactions,
-      balance: {
-        income,
-        outcome,
-        total: income - outcome,
-      },
-    });
+    return response.json({ transactions, balance });
   } catch (err) {
     return response.status(400).json({ error: err.message });
   }
@@ -42,28 +20,17 @@ transactionRouter.get('/', (request, response) => {
 
 transactionRouter.post('/', (request, response) => {
   try {
-    /**
-     * type: Tipo da transação -> Income = Depósitos | Outcome = Retiradas
-     */
     const { title, value, type } = request.body;
 
-    const transaction = { id: uuid(), title, value, type };
+    const createTransactionService = new CreateTransactionService(
+      transactionsRepository,
+    );
 
-    const income = transactions
-      .filter(t => t.type === 'income')
-      .reduce((inc, t) => inc + t.value, 0);
-
-    const outcome = transactions
-      .filter(t => t.type === 'outcome')
-      .reduce((out, t) => out + t.value, 0);
-
-    const total = income - outcome;
-
-    if (transaction.type === 'outcome' && total - transaction.value < 0) {
-      return response.status(400).json({ error: 'Insufficient Funds' });
-    }
-
-    transactions.push(transaction);
+    const transaction = createTransactionService.execute({
+      title,
+      value,
+      type,
+    });
 
     return response.json(transaction);
   } catch (err) {
